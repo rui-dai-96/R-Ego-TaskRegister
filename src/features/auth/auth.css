@@ -1,0 +1,17 @@
+.auth-page { min-height: 100vh; display: grid; grid-template-columns: 1.15fr .85fr; background: #090a09; }
+.auth-brand { padding: 48px 7vw; display: flex; flex-direction: column; justify-content: space-between; color: #fff; background: radial-gradient(circle at 75% 20%, #385d24, transparent 32%), #090a09; }
+.auth-brand img { width: 170px; }.auth-brand span { color: #ccffa0; font: 600 10px 'Space Grotesk'; letter-spacing: .16em; }
+.auth-brand h1 { margin: 22px 0; font: 500 clamp(40px, 5vw, 72px)/1.02 'Space Grotesk'; letter-spacing: -.06em; }
+.auth-brand p { color: #969c94; }
+.auth-form-wrap, .password-page { display: grid; place-items: center; padding: 32px; background: #f7f8f5; }
+.auth-form { width: min(390px, 100%); }.auth-form.compact { padding: 32px; border: 1px solid #dfe3dc; border-radius: 14px; background: #fff; }
+.auth-form h2 { margin: 8px 0; font: 600 34px 'Space Grotesk'; letter-spacing: -.05em; }.auth-form > p { color: #80857e; font-size: 12px; }
+.auth-form .auth-eyebrow { color: #527736; font: 700 9px 'Space Grotesk'; letter-spacing: .14em; }
+.auth-form label { margin-top: 20px; display: grid; gap: 7px; color: #4c514a; font-size: 11px; font-weight: 600; }
+.auth-form label > div { height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 9px; border: 1px solid #dce0d9; border-radius: 8px; background: #fff; }
+.auth-form input { width: 100%; border: 0; outline: 0; background: none; font-size: 12px; }.auth-form label small { color: #b34132; }
+.auth-form > button { width: 100%; height: 44px; margin-top: 22px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #111; border-radius: 8px; color: #111; background: #ccffa0; font-weight: 700; }
+.auth-form footer { margin-top: 44px; color: #a0a49e; font-size: 9px; text-align: center; }
+.auth-error { margin-top: 14px; padding: 10px; border-radius: 7px; color: #a4372a; background: #fff0ed; font-size: 10px; }
+.password-page { min-height: 100vh; }.security-mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 10px; color: #365826; background: #ccffa0; }
+@media (max-width: 760px) { .auth-page { grid-template-columns: 1fr; }.auth-brand { min-height: 310px; }.auth-brand h1 { font-size: 40px; }.auth-form-wrap { padding: 48px 24px; } }
