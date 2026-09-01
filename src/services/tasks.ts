@@ -59,7 +59,7 @@ export async function listCandidateTasks(filters: TaskFilters = {}): Promise<Pag
   const search = filters.search?.trim()
   if (search) {
     const value = search.replace(/[,%_().]/g, ' ')
-    query = query.or(`task_code.ilike.%${value}%,example_name.ilike.%${value}%,level2_task.ilike.%${value}%`)
+    query = query.or(`task_code.ilike.%${value}%,example_name.ilike.%${value}%,level_two_task.ilike.%${value}%`)
   }
   if (filters.level1Scene) query = query.eq('level_one_scene', filters.level1Scene)
   if (filters.level2Task) query = query.eq('level_two_task', filters.level2Task)
