@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  Bell, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck,
+  ArrowDown, ArrowUp, Bell, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheck,
   ClipboardCheck, FileUp, LayoutGrid, ListTodo, MoreHorizontal, Pencil,
   Plus, Search, ShieldCheck, Trash2, Upload, UserRoundCog, Users, X,
 } from 'lucide-react'
@@ -187,10 +187,22 @@ function Dashboard({ initialRole = 'admin', allowRoleSwitch = false }: { initial
 }
 
 function FilterBar({ query, setQuery, children }: { query: string; setQuery: (value: string) => void; children?: React.ReactNode }) {
-  return <div className="filter-bar"><div className="search-box"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索任务名称、场景或编号..." /></div>{children}<button className="filter-button">上传状态 <ChevronDown size={15} /></button></div>
+  return <div className="filter-bar"><div className="search-box"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="模糊搜索三级任务名称或编号..." /></div>{children}<button className="filter-button">上传状态 <ChevronDown size={15} /></button></div>
 }
 
 function AdminTasks({ tasks, query, setQuery, scene, setScene, onDelete, onOpen, notify }: { tasks: Task[]; query: string; setQuery: (v: string) => void; scene: string; setScene: (v: string) => void; onDelete: (id: string) => void; onOpen: (task: Task) => void; notify: (v: string) => void }) {
+  const [taskFilter, setTaskFilter] = useState('')
+  const [sortBy, setSortBy] = useState<'id' | 'scene' | 'total' | 'approved' | 'pending' | 'quantity'>('id')
+  const [direction, setDirection] = useState<'asc' | 'desc'>('desc')
+  const scenes = [...new Set(seedTasks.map((task) => task.level1))].sort()
+  const taskOptions = [...new Set(seedTasks.map((task) => task.level2Task))].sort()
+  const toggleSort = (key: typeof sortBy) => { setDirection(sortBy === key && direction === 'desc' ? 'asc' : 'desc'); setSortBy(key) }
+  const displayTasks = [...tasks].filter((task) => !taskFilter || task.level2Task === taskFilter).sort((a, b) => {
+    const values = { id: [a.id, b.id], scene: [`${a.level1}${a.level2}`, `${b.level1}${b.level2}`], total: [a.total, b.total], approved: [a.approved, b.approved], pending: [a.pending, b.pending], quantity: [a.quantity, b.quantity] }[sortBy]
+    const result = typeof values[0] === 'number' ? Number(values[0]) - Number(values[1]) : String(values[0]).localeCompare(String(values[1]), 'zh-CN')
+    return direction === 'asc' ? result : -result
+  })
+  const sortHeader = (label: string, key: typeof sortBy) => <button className={`sort-button ${sortBy === key ? 'active' : ''}`} onClick={() => toggleSort(key)}>{label}{sortBy === key && (direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</button>
   return <>
     <div className="stats-grid">
       <div className="stat-card accent"><span>候选任务总数</span><strong>248</strong><small>较上月 <b>+12.5%</b></small><ListTodo /></div>
@@ -200,12 +212,13 @@ function AdminTasks({ tasks, query, setQuery, scene, setScene, onDelete, onOpen,
     </div>
     <div className="panel">
       <FilterBar query={query} setQuery={setQuery}>
-        <select value={scene} onChange={(e) => setScene(e.target.value)}><option>全部场景</option><option>家庭场景</option><option>商业场景</option><option>工业场景</option><option>公共场景</option></select>
+        <select value={scene} onChange={(e) => setScene(e.target.value)}><option>全部场景</option>{scenes.map((item) => <option key={item}>{item}</option>)}</select>
+        <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}><option value="">全部任务</option>{taskOptions.map((item) => <option key={item}>{item}</option>)}</select>
       </FilterBar>
-      <div className="table-wrap"><table><thead><tr><th><input type="checkbox" /></th><th>任务编号</th><th>一级 / 二级场景</th><th>二级任务</th><th>三级任务示例名称</th><th>总数</th><th>已通过</th><th>待审核</th><th>剩余</th><th>上传状态</th><th /></tr></thead>
-        <tbody>{tasks.map((task) => <tr key={task.id}><td><input type="checkbox" /></td><td><button className="task-link" onClick={() => onOpen(task)}>{task.id}</button></td><td><strong>{task.level1}</strong><small>{task.level2}</small></td><td>{task.level2Task}</td><td><button className="name-link" onClick={() => onOpen(task)}><strong>{task.example}</strong><small className="truncate">{task.steps}</small></button></td><td><span className="count-cell">{task.total}</span></td><td><span className="count-cell approved">{task.approved}</span></td><td><span className="count-cell pending">{task.pending}</span></td><td><span className={task.quantity ? 'quantity' : 'quantity zero'}>{String(task.quantity).padStart(2, '0')}</span></td><td><Badge tone={task.status === '已发布' ? 'green' : 'gray'}>{task.status}</Badge></td><td><div className="row-actions"><button onClick={() => notify('编辑功能已打开')}><Pencil size={15} /></button><button onClick={() => onDelete(task.id)}><Trash2 size={15} /></button><button><MoreHorizontal size={17} /></button></div></td></tr>)}</tbody>
+      <div className="table-wrap"><table><thead><tr><th><input type="checkbox" /></th><th>{sortHeader('任务编号', 'id')}</th><th>{sortHeader('一级 / 二级场景', 'scene')}</th><th>二级任务</th><th>三级任务示例名称</th><th>{sortHeader('总数', 'total')}</th><th>{sortHeader('已通过', 'approved')}</th><th>{sortHeader('待审核', 'pending')}</th><th>{sortHeader('剩余', 'quantity')}</th><th>上传状态</th><th /></tr></thead>
+        <tbody>{displayTasks.map((task) => <tr key={task.id}><td><input type="checkbox" /></td><td><button className="task-link" onClick={() => onOpen(task)}>{task.id}</button></td><td><strong>{task.level1}</strong><small>{task.level2}</small></td><td>{task.level2Task}</td><td><button className="name-link" onClick={() => onOpen(task)}><strong>{task.example}</strong><small className="truncate">{task.steps}</small></button></td><td><span className="count-cell">{task.total}</span></td><td><span className="count-cell approved">{task.approved}</span></td><td><span className="count-cell pending">{task.pending}</span></td><td><span className={task.quantity ? 'quantity' : 'quantity zero'}>{String(task.quantity).padStart(2, '0')}</span></td><td><Badge tone={task.status === '已发布' ? 'green' : 'gray'}>{task.status}</Badge></td><td><div className="row-actions"><button onClick={() => notify('编辑功能已打开')}><Pencil size={15} /></button><button onClick={() => onDelete(task.id)}><Trash2 size={15} /></button><button><MoreHorizontal size={17} /></button></div></td></tr>)}</tbody>
       </table></div>
-      <Pagination total={tasks.length} />
+      <Pagination total={displayTasks.length} />
     </div>
   </>
 }
@@ -238,10 +251,15 @@ function TaskDetail({ task, back, review }: { task: Task; back: () => void; revi
 
 function Reviews({ approve }: { approve: () => void }) {
   const [selected, setSelected] = useState(0)
+  const [reviewStatus, setReviewStatus] = useState<'待审核' | '已通过' | '需修改'>('待审核')
   const [sceneFilter, setSceneFilter] = useState('全部一级场景')
   const [taskFilter, setTaskFilter] = useState('全部任务')
   const [vendorFilter, setVendorFilter] = useState('全部 Vendor')
-  const filteredReviews = reviews.filter((item) =>
+  const sceneOptions = [...new Set(reviews.map((item) => item.path.split(' / ')[0]))].sort()
+  const reviewTaskOptions = [...new Set(reviews.map((item) => item.path.split(' / ')[2]))].sort()
+  const reviewVendorOptions = [...new Set(reviews.map((item) => item.vendor))].sort()
+  const statusItems = reviewStatus === '待审核' ? reviews : reviews.slice(0, reviewStatus === '已通过' ? 2 : 1).map((item) => ({ ...item, status: reviewStatus }))
+  const filteredReviews = statusItems.filter((item) =>
     (sceneFilter === '全部一级场景' || item.path.startsWith(sceneFilter)) &&
     (taskFilter === '全部任务' || item.path.includes(taskFilter)) &&
     (vendorFilter === '全部 Vendor' || item.vendor === vendorFilter)
@@ -250,14 +268,15 @@ function Reviews({ approve }: { approve: () => void }) {
   if (!current) return <div className="panel empty-state"><p>没有符合当前筛选条件的待审核任务</p><button className="secondary" onClick={() => { setSceneFilter('全部一级场景'); setTaskFilter('全部任务'); setVendorFilter('全部 Vendor'); setSelected(0) }}>清除筛选</button></div>
   const sameLevelApproved = approvedDesigns.filter((design) => design.taskId === current.taskId)
   return <>
+    <div className="result-tabs review-status-tabs">{(['待审核', '已通过', '需修改'] as const).map((status) => <button key={status} className={reviewStatus === status ? 'active' : ''} onClick={() => { setReviewStatus(status); setSelected(0) }}>{status}</button>)}</div>
     <div className="review-filters">
       <div className="search-box"><Search size={17} /><input placeholder="搜索提交名称或编号..." /></div>
-      <select value={sceneFilter} onChange={(e) => { setSceneFilter(e.target.value); setSelected(0) }}><option>全部一级场景</option><option>家庭场景</option><option>商业场景</option><option>工业场景</option></select>
-      <select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setSelected(0) }}><option>全部任务</option><option>餐具整理</option><option>物品归位</option><option>货架补货</option></select>
-      <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setSelected(0) }}><option>全部 Vendor</option>{vendorAccounts.map((vendor) => <option key={vendor.name}>{vendor.name}</option>)}</select>
+      <select value={sceneFilter} onChange={(e) => { setSceneFilter(e.target.value); setSelected(0) }}><option>全部一级场景</option>{sceneOptions.map((item) => <option key={item}>{item}</option>)}</select>
+      <select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setSelected(0) }}><option>全部任务</option>{reviewTaskOptions.map((item) => <option key={item}>{item}</option>)}</select>
+      <select value={vendorFilter} onChange={(e) => { setVendorFilter(e.target.value); setSelected(0) }}><option>全部 Vendor</option>{reviewVendorOptions.map((item) => <option key={item}>{item}</option>)}</select>
     </div>
-    <div className="review-layout"><div className="panel review-list"><div className="panel-title"><div><h3>待审核队列</h3><p>按提交时间排序</p></div><Badge tone="orange">{filteredReviews.length} 个待处理</Badge></div>{filteredReviews.map((item, index) => <button className={`review-item ${index === selected ? 'selected' : ''}`} key={item.id} onClick={() => setSelected(index)}><div className="review-top"><span>{item.id}</span><small>{item.submitted}</small></div><strong>{item.design}</strong><p>{item.vendor} · 基于「{item.task}」</p><div><Badge tone="orange">待审核</Badge><span>已有 {item.approved} 个设计通过</span></div></button>)}</div>
-      <div className="review-preview"><div className="preview-hero"><span>当前审核</span><h2>{current.design}</h2><p>供应商：{current.vendor}　·　提交于{current.submitted}</p></div><div className="preview-body"><section><label>关联候选任务</label><div className="linked-task"><ListTodo size={19} /><div><strong>{current.task}</strong><small>{current.path}</small></div><span>{current.taskId}</span></div></section><section><label>待审核任务步骤</label><ol>{current.steps.map((step, index) => <li key={step}><i>{String(index + 1).padStart(2, '0')}</i>{step}</li>)}</ol></section><section><label>已通过的同级任务完整清单 <span>{sameLevelApproved.length}</span></label><div className="approved-designs">{sameLevelApproved.map((design) => <article key={design.id}><div><span>{design.id}</span><Badge>已通过</Badge></div><h4>{design.name}</h4><p>Vendor：{design.vendor}</p><ol>{design.steps.map((step, index) => <li key={step}><i>{String(index + 1).padStart(2, '0')}</i>{step}</li>)}</ol></article>)}</div></section><div className="review-actions"><button className="danger">退回修改</button><button className="primary" onClick={approve}><Check size={17} />通过审核</button></div></div></div></div>
+    <div className="review-layout"><div className="panel review-list"><div className="panel-title"><div><h3>{reviewStatus}任务</h3><p>按提交时间排序</p></div><Badge tone={reviewStatus === '待审核' ? 'orange' : reviewStatus === '已通过' ? 'green' : 'gray'}>{filteredReviews.length} 个结果</Badge></div>{filteredReviews.map((item, index) => <button className={`review-item ${index === selected ? 'selected' : ''}`} key={item.id} onClick={() => setSelected(index)}><div className="review-top"><span>{item.id}</span><small>{item.submitted}</small></div><strong>{item.design}</strong><p>{item.vendor} · 基于「{item.task}」</p><div><Badge tone={reviewStatus === '待审核' ? 'orange' : reviewStatus === '已通过' ? 'green' : 'gray'}>{reviewStatus}</Badge><span>已有 {item.approved} 个设计通过</span></div></button>)}</div>
+      <div className="review-preview"><div className="preview-hero"><span>{reviewStatus}</span><h2>{current.design}</h2><p>供应商：{current.vendor}　·　提交于{current.submitted}</p></div><div className="preview-body"><section><label>关联候选任务</label><div className="linked-task"><ListTodo size={19} /><div><strong>{current.task}</strong><small>{current.path}</small></div><span>{current.taskId}</span></div></section><section><label>任务步骤</label><ol>{current.steps.map((step, index) => <li key={step}><i>{String(index + 1).padStart(2, '0')}</i>{step}</li>)}</ol></section><section><label>已通过的同级任务完整清单 <span>{sameLevelApproved.length}</span></label><div className="approved-designs">{sameLevelApproved.map((design) => <article key={design.id}><div><span>{design.id}</span><Badge>已通过</Badge></div><h4>{design.name}</h4><p>Vendor：{design.vendor}</p><ol>{design.steps.map((step, index) => <li key={step}><i>{String(index + 1).padStart(2, '0')}</i>{step}</li>)}</ol></article>)}</div></section>{reviewStatus === '待审核' && <div className="review-actions"><button className="danger">退回修改</button><button className="primary" onClick={approve}><Check size={17} />通过审核</button></div>}</div></div></div>
   </>
 }
 
@@ -266,21 +285,31 @@ function Vendors({ notify }: { notify: (v: string) => void }) {
 }
 
 function ClaimTasks({ tasks, query, setQuery, onClaim }: { tasks: Task[]; query: string; setQuery: (v: string) => void; onClaim: (task: Task) => void }) {
-  const available = tasks.filter((task) => task.quantity > 0 && task.status === '已发布')
-  return <><div className="vendor-banner compact"><div><span>AVAILABLE TASKS</span><h2>找到适合你的采集任务</h2><p>任务库支持数千条三级任务的快速检索与批量浏览</p></div><div className="orb"><span>92</span><small>OPEN</small></div></div><div className="panel"><FilterBar query={query} setQuery={setQuery}><button className="filter-button">一级场景 <ChevronDown size={15} /></button><button className="filter-button">二级任务 <ChevronDown size={15} /></button></FilterBar><div className="table-wrap vendor-task-table"><table><thead><tr><th>任务编号</th><th>一级 / 二级场景</th><th>二级任务</th><th>三级任务名称与步骤</th><th>已通过</th><th>可认领数量</th><th /></tr></thead><tbody>{available.map((task) => <tr key={task.id}><td><span className="task-id">{task.id}</span></td><td><strong>{task.level1}</strong><small>{task.level2}</small></td><td>{task.level2Task}</td><td><strong>{task.example}</strong><small className="vendor-step">{task.steps}</small></td><td><span className="count-cell approved">{task.approved}</span></td><td><Badge>{task.quantity} 个</Badge></td><td><button className="claim-button" onClick={() => onClaim(task)}>认领并设计 <ChevronRight size={15} /></button></td></tr>)}</tbody></table></div><Pagination total={2846} /></div></>
+  const [sceneFilter, setSceneFilter] = useState('')
+  const [taskFilter, setTaskFilter] = useState('')
+  const scenes = [...new Set(seedTasks.map((task) => task.level1))].sort()
+  const taskOptions = [...new Set(seedTasks.map((task) => task.level2Task))].sort()
+  const available = tasks.filter((task) => task.quantity > 0 && task.status === '已发布' && (!sceneFilter || task.level1 === sceneFilter) && (!taskFilter || task.level2Task === taskFilter))
+  return <><div className="vendor-banner compact"><div><span>AVAILABLE TASKS</span><h2>找到适合你的采集任务</h2><p>任务库支持数千条三级任务的快速检索与批量浏览</p></div><div className="orb"><span>92</span><small>OPEN</small></div></div><div className="panel"><FilterBar query={query} setQuery={setQuery}><select value={sceneFilter} onChange={(e) => setSceneFilter(e.target.value)}><option value="">全部场景</option>{scenes.map((item) => <option key={item}>{item}</option>)}</select><select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}><option value="">全部任务</option>{taskOptions.map((item) => <option key={item}>{item}</option>)}</select></FilterBar><div className="table-wrap vendor-task-table"><table><thead><tr><th>任务编号</th><th>一级 / 二级场景</th><th>二级任务</th><th>三级任务名称与步骤</th><th>已通过</th><th>可认领数量</th><th /></tr></thead><tbody>{available.map((task) => <tr key={task.id}><td><span className="task-id">{task.id}</span></td><td><strong>{task.level1}</strong><small>{task.level2}</small></td><td>{task.level2Task}</td><td><strong>{task.example}</strong><small className="vendor-step">{task.steps}</small></td><td><span className="count-cell approved">{task.approved}</span></td><td><Badge>{task.quantity} 个</Badge></td><td><button className="claim-button" onClick={() => onClaim(task)}>认领并设计 <ChevronRight size={15} /></button></td></tr>)}</tbody></table></div><Pagination total={2846} /></div></>
 }
 
 function Results() {
+  const [search, setSearch] = useState('')
   const resultRows = [
-    { id: 'SUB-1076', name: '清理双人早餐后的餐具', task: '餐具整理', date: '2026-08-29', status: '审核通过', tone: 'green' as const, note: '设计清晰，可直接执行' },
-    { id: 'SUB-1072', name: '整理 L 型沙发上的靠枕', task: '物品归位', date: '2026-08-28', status: '需要修改', tone: 'orange' as const, note: '请补充靠枕朝向判定规则' },
-    { id: 'SUB-1064', name: '为会议室桌面做会后清理', task: '桌面清洁', date: '2026-08-25', status: '审核中', tone: 'gray' as const, note: '预计 24 小时内完成' },
+    { id: 'SUB-1076', name: '清理双人早餐后的餐具', level1: '家庭场景', level2: '厨房', task: '餐具整理', steps: ['识别早餐餐具', '清理食物残渣', '分类放入洗碗机'], date: '2026-08-29', status: '审核通过', tone: 'green' as const, note: '设计清晰，可直接执行' },
+    { id: 'SUB-1072', name: '整理 L 型沙发上的靠枕', level1: '家庭场景', level2: '客厅', task: '物品归位', steps: ['识别靠枕位置', '按尺寸抓取', '沿靠背依次摆放'], date: '2026-08-28', status: '需要修改', tone: 'orange' as const, note: '请补充靠枕朝向判定规则' },
+    { id: 'SUB-1064', name: '为会议室桌面做会后清理', level1: '公共场景', level2: '办公区', task: '桌面清洁', steps: ['收集杯具', '丢弃垃圾', '擦拭桌面并归位座椅'], date: '2026-08-25', status: '审核中', tone: 'gray' as const, note: '预计 24 小时内完成' },
   ]
-  return <div className="panel result-panel"><div className="result-tabs"><button className="active">全部提交 <span>12</span></button><button>审核中 <span>1</span></button><button>已通过 <span>9</span></button><button>需修改 <span>2</span></button></div>{resultRows.map((row) => <div className="result-row" key={row.id}><div className="result-icon"><ClipboardCheck /></div><div className="result-main"><span>{row.id} · {row.task}</span><strong>{row.name}</strong><small>提交于 {row.date}</small></div><p>{row.note}</p><Badge tone={row.tone}>{row.status}</Badge><ChevronRight size={18} /></div>)}</div>
+  const filtered = resultRows.filter((row) => row.name.toLowerCase().includes(search.toLowerCase()))
+  return <div className="panel"><div className="filter-bar"><div className="search-box"><Search size={17} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索设计的三级任务名称..." /></div></div><div className="table-wrap result-task-table"><table><thead><tr><th>三级任务名称</th><th>任务步骤</th><th>一级场景</th><th>二级场景</th><th>二级任务</th><th>审核结果</th><th>审核意见</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.id}><td><strong>{row.name}</strong><small>{row.id} · {row.date}</small></td><td><div className="result-steps">{row.steps.map((step, index) => <span key={step}><i>{index + 1}</i>{step}</span>)}</div></td><td>{row.level1}</td><td>{row.level2}</td><td>{row.task}</td><td><Badge tone={row.tone}>{row.status}</Badge></td><td><span className="review-note">{row.note}</span></td></tr>)}</tbody></table></div><Pagination total={12} /></div>
 }
 
 function Pagination({ total }: { total: number }) {
-  return <div className="pagination"><span>显示 1–{total}，共 {total} 条</span><div><button><ChevronLeft size={16} /></button><button className="active">1</button><button>2</button><button>3</button><button><ChevronRight size={16} /></button></div></div>
+  const [page, setPage] = useState(1)
+  const [input, setInput] = useState('1')
+  const totalPages = Math.max(1, Math.ceil(total / 25))
+  const jump = () => { const next = Math.min(totalPages, Math.max(1, Number.parseInt(input, 10) || page)); setPage(next); setInput(String(next)) }
+  return <div className="pagination"><span>第 {page} / {totalPages} 页，共 {total} 条</span><div><button disabled={page <= 1} onClick={() => { setPage(page - 1); setInput(String(page - 1)) }}><ChevronLeft size={16} /></button><label className="page-jump">跳至<input value={input} onChange={(e) => setInput(e.target.value.replace(/\D/g, ''))} onBlur={jump} onKeyDown={(e) => e.key === 'Enter' && jump()} />页</label><button disabled={page >= totalPages} onClick={() => { setPage(page + 1); setInput(String(page + 1)) }}><ChevronRight size={16} /></button></div></div>
 }
 
 function Modal({ children, close, wide = false }: { children: React.ReactNode; close: () => void; wide?: boolean }) {
@@ -297,7 +326,7 @@ function AddTaskModal({ close, onAdd }: { close: () => void; onAdd: (task: Task)
 }
 
 function ClaimModal({ task, close, submit }: { task: Task; close: () => void; submit: () => void }) {
-  return <Modal close={close} wide><div className="modal-heading"><span><ClipboardCheck /></span><div><h2>认领并设计任务</h2><p>{task.id} · {task.level1} / {task.level2} / {task.level2Task}</p></div></div><div className="claim-source"><label>候选任务示例</label><strong>{task.example}</strong><p>{task.steps}</p></div><div className="form-grid"><label className="full">你的三级任务名称<input placeholder="请提交不同于已有设计的具体任务名称" /></label><label className="full">三级任务步骤<textarea placeholder={'1. 描述机器人首先需要完成的动作\n2. 继续添加可执行、可验证的步骤\n3. 明确任务的完成状态'} /></label><label>认领数量<select><option>1 个任务设计</option><option>2 个任务设计</option><option>3 个任务设计</option></select></label></div><div className="notice"><ShieldCheck size={17} /><span>提交后将进入 Admin 审核队列，通过后才会计入任务数量。</span></div><div className="modal-actions"><button className="secondary" onClick={close}>取消</button><button className="primary" onClick={submit}>提交审核</button></div></Modal>
+  return <Modal close={close} wide><div className="modal-heading"><span><ClipboardCheck /></span><div><h2>认领并设计任务</h2><p>{task.id} · {task.level1} / {task.level2} / {task.level2Task}</p></div></div><div className="claim-source"><label>候选任务示例</label><strong>{task.example}</strong><p>{task.steps}</p></div><div className="form-grid"><label className="full">你的三级任务名称<input placeholder="请提交不同于已有设计的具体任务名称" /></label><label className="full">三级任务步骤<textarea placeholder={'1. 描述机器人首先需要完成的动作\n2. 继续添加可执行、可验证的步骤\n3. 明确任务的完成状态'} /></label></div><div className="notice"><ShieldCheck size={17} /><span>每次仅提交一个任务设计。提交后将进入 Admin 审核队列，通过后计入任务数量。</span></div><div className="modal-actions"><button className="secondary" onClick={close}>取消</button><button className="primary" onClick={submit}>提交审核</button></div></Modal>
 }
 
 function ReviewModal({ close, notify }: { close: () => void; notify: (v: string) => void }) {

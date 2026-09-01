@@ -310,6 +310,86 @@ npm run db:reset
 admin@ropedia.local / AdminDemo!2026
 ```
 
+### 登录页提示 Email logins are disabled
+
+这不是前端问题。Supabase CLI 会把 `supabase/config.toml` 里的 `[auth.email] enable_signup` 映射成 GoTrue 的 `GOTRUE_EXTERNAL_EMAIL_ENABLED`。这个字段看起来像“禁止邮箱注册”，实际会关掉整个邮箱登录能力，`signInWithPassword` 直接返回：
+
+```text
+Email logins are disabled
+```
+
+正确配置是：全局 `[auth] enable_signup = false` 用来禁止自助注册；`[auth.email] enable_signup = true` 用来保留邮箱密码登录。
+
+```toml
+[auth]
+enable_signup = false
+
+[auth.email]
+enable_signup = true
+```
+
+改完后必须完整重启，`config.toml` 只在容器创建时读取：
+
+```bash
+npm run db:stop
+npm run db:start
+```
+
+不要用 `npm run db:reset` 来修这件事，reset 会清空本地数据。
+
+确认 Auth 已打开邮箱登录：
+
+```bash
+docker exec supabase_auth_task-register env | grep GOTRUE_EXTERNAL_EMAIL_ENABLED
+```
+
+期望输出：
+
+```text
+GOTRUE_EXTERNAL_EMAIL_ENABLED=true
+```
+
+同时 `GOTRUE_DISABLE_SIGNUP=true` 表示自助注册仍被关掉。
+
+### 登录成功但页面不跳转
+
+登录请求可能已经成功，但随后拉取 `profiles` 失败。`AuthProvider` 会在 `fetchProfile` 出错时静默 `signOut()`，所以页面仍停在登录页，而且不一定显示错误。
+
+最常见原因是 PostgREST 嵌套查询歧义。`vendors` 表通过三条外键引用 `profiles`：
+
+```text
+vendors.profile_id
+vendors.created_by
+vendors.disabled_by
+```
+
+如果查询写成 `vendors(...)`，会返回：
+
+```text
+PGRST201
+Could not embed because more than one relationship was found for 'profiles' and 'vendors'
+```
+
+必须显式指定账号关联那条外键：
+
+```text
+vendors!vendors_profile_id_fkey(...)
+```
+
+对应代码在 `src/features/auth/AuthProvider.tsx` 的 `fetchProfile`。改完后如果前端跑的是 `npm run preview`，需要重新构建：
+
+```bash
+npm run build
+```
+
+然后硬刷新浏览器。开发模式 `npm run dev` 会热更新，不必 rebuild。
+
+如果刚合并了新的 migration 文件，`npm run db:start` 只会从备份恢复已有库，不会自动应用新增 SQL。登录进去后搜索/筛选也可能报错。增量应用：
+
+```bash
+npx supabase migration up
+```
+
 ### Supabase 启动失败
 
 常见原因是 Docker 没启动或端口被占用。
@@ -1503,6 +1583,8 @@ VITE_SUPABASE_URL=https://supabase.example.com
 检查 supabase/config.toml 的 site_url 和 additional_redirect_urls
 检查 ALLOWED_ORIGIN 是否匹配前端地址
 修改配置后重启 Supabase，并重新 build 前端
+如果提示 Email logins are disabled：不要把 [auth.email] enable_signup 设为 false
+如果登录无报错但不跳转：检查 profiles 查询是否写成 vendors!vendors_profile_id_fkey(...)
 ```
 
 Supabase 起不来：

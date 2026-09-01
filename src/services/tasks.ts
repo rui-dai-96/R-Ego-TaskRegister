@@ -42,9 +42,13 @@ export type TaskFilters = {
   level2Task?: string
   status?: string
   availableOnly?: boolean
+  sortBy?: TaskSortKey
+  sortDirection?: 'asc' | 'desc'
   page?: number
   pageSize?: number
 }
+
+export type TaskSortKey = 'task_code' | 'scene' | 'target_count' | 'approved_count' | 'pending_count' | 'available_count'
 
 export async function listCandidateTasks(filters: TaskFilters = {}): Promise<PaginatedResult<CandidateTask>> {
   const page = filters.page ?? 1
@@ -52,8 +56,9 @@ export async function listCandidateTasks(filters: TaskFilters = {}): Promise<Pag
   const from = (page - 1) * pageSize
   let query = supabase.from('candidate_tasks').select('*', { count: 'exact' })
 
-  if (filters.search) {
-    const value = filters.search.replaceAll(',', ' ')
+  const search = filters.search?.trim()
+  if (search) {
+    const value = search.replace(/[,%_().]/g, ' ')
     query = query.or(`task_code.ilike.%${value}%,example_name.ilike.%${value}%,level2_task.ilike.%${value}%`)
   }
   if (filters.level1Scene) query = query.eq('level_one_scene', filters.level1Scene)
@@ -61,9 +66,28 @@ export async function listCandidateTasks(filters: TaskFilters = {}): Promise<Pag
   if (filters.status) query = query.eq('status', filters.status)
   if (filters.availableOnly) query = query.gt('available_count', 0)
 
-  const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, from + pageSize - 1)
+  const sortColumns: Record<TaskSortKey, string> = {
+    task_code: 'task_code',
+    scene: 'level_one_scene',
+    target_count: 'target_count',
+    approved_count: 'approved_count',
+    pending_count: 'pending_count',
+    available_count: 'available_count',
+  }
+  const sortBy = filters.sortBy ?? 'task_code'
+  const ascending = (filters.sortDirection ?? 'desc') === 'asc'
+  query = query.order(sortColumns[sortBy], { ascending })
+  if (sortBy === 'scene') query = query.order('level_two_scene', { ascending })
+  const { data, count, error } = await query.order('id', { ascending: true }).range(from, from + pageSize - 1)
   if (error) throw error
   return { data: (data ?? []).map((row) => mapCandidateTask(row as RawCandidateTask)), count: count ?? 0, page, pageSize }
+}
+
+export async function getTaskFilterOptions() {
+  const { data, error } = await supabase.rpc('get_task_filter_options')
+  if (error) throw error
+  const result = data as { scenes?: string[]; tasks?: string[] } | null
+  return { scenes: result?.scenes ?? [], tasks: result?.tasks ?? [] }
 }
 
 export async function getCandidateTaskStats() {
@@ -174,6 +198,7 @@ export async function resubmitTaskDesign(submissionId: string, name: string, ste
 }
 
 export type SubmissionFilters = {
+  search?: string
   scene?: string
   task?: string
   vendorId?: string
@@ -189,6 +214,9 @@ export async function listSubmissions(filters: SubmissionFilters = {}): Promise<
   let query = supabase
     .from('task_submissions')
     .select('*, vendor:vendors(id,company_name), candidate_task:candidate_tasks!inner(*), steps:submission_steps(*), review_records(feedback,created_at)', { count: 'exact' })
+  if (filters.search?.trim()) {
+    query = query.ilike('design_name', `%${filters.search.trim().replace(/[%_]/g, ' ')}%`)
+  }
   if (filters.status) query = query.eq('status', filters.status)
   if (filters.vendorId) query = query.eq('vendor_id', filters.vendorId)
   if (filters.scene) query = query.eq('candidate_task.level_one_scene', filters.scene)

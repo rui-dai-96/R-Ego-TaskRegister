@@ -1,5 +1,16 @@
 # Edit Log
 
+## v1.1.0 — 2026-09-01
+
+- Removed the claim-quantity field; each Vendor submission now always represents exactly one task design.
+- Added debounced fuzzy search for task names and codes, backed by a PostgreSQL trigram index.
+- Replaced fixed scene and task filters with role-aware options derived from current database data.
+- Added Admin review views for every submission status and retained scene, task, and Vendor filters.
+- Added direct page-number entry to Admin candidate tasks, Vendor claims, review queues, and Vendor results.
+- Added server-side candidate sorting by task code, scene, total, approved, pending, and remaining counts.
+- Expanded Vendor review results into a searchable, paginated table with the level-three design name, ordered steps, full scene taxonomy, review status, and review feedback.
+- Kept the local visual Demo behavior aligned with the production workspace.
+
 ## v1.0.0 — 2026-08-31
 
 - Rebuilt the Demo as a production React application with routing, Supabase sessions, role guards, query caching, validated forms, and lazy-loaded workspaces.

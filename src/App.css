@@ -215,6 +215,18 @@ td small { margin-top: 4px; color: #92968f; font-size: 9px; }
 .empty-state { padding: 28px; color: #8b9089; font-size: 10px; text-align: center; }
 .empty-state p { margin: 0 0 12px; }
 .file-button { cursor: pointer; }.file-button input { display: none; }
+.sort-button { padding: 0; display: inline-flex; align-items: center; gap: 4px; border: 0; color: inherit; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.sort-button.active { color: #3f6228; }.sort-placeholder { width: 12px; }
+.page-jump { margin: 0 4px; display: flex; align-items: center; gap: 5px; color: #858a83; font-size: 9px; }
+.page-jump input { width: 43px; height: 28px; padding: 0 5px; border: 1px solid #d9ddd6; border-radius: 6px; outline: 0; text-align: center; }
+.page-jump input:focus { border-color: #80a862; box-shadow: 0 0 0 2px #edffdf; }
+.review-status-tabs { margin-bottom: 12px; border: 1px solid #e0e3dc; border-radius: 10px; background: #fff; }
+.result-task-table td { vertical-align: top; }
+.result-task-table th:nth-child(1) { min-width: 190px; }.result-task-table th:nth-child(2) { min-width: 310px; }
+.result-steps { display: grid; gap: 5px; white-space: normal; }
+.result-steps span { display: flex; align-items: flex-start; gap: 6px; color: #666c64; line-height: 1.45; }
+.result-steps i { min-width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: #4f7137; background: #edffdf; font: 600 8px 'Space Grotesk'; font-style: normal; }
+.review-note { max-width: 190px; display: block; color: #70766e; white-space: normal; line-height: 1.5; }
 
 @media (max-width: 1050px) {
   .app-shell { grid-template-columns: 78px 1fr; }

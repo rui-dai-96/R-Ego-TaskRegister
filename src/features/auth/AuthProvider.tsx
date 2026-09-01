@@ -29,6 +29,8 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 async function fetchProfile(userId: string): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
+    // vendors references profiles via three FKs (profile_id/created_by/disabled_by),
+    // so the embed must name the one linking a vendor to its own account.
     .select('id, role, display_name, must_change_password, vendors!vendors_profile_id_fkey(id,contact_email,disabled_at)')
     .eq('id', userId)
     .single()

@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Bell, Check, ChevronRight, ClipboardCheck, FileUp, LayoutGrid, ListTodo,
+  ArrowDown, ArrowUp, Bell, Check, ChevronRight, ClipboardCheck, FileUp, LayoutGrid, ListTodo,
   LogOut, Plus, Search, ShieldCheck, UserRoundCog, Users, X,
 } from 'lucide-react'
 import logo from '../../assets/ropedia-logo.png'
 import { useAuth } from '../auth/AuthProvider'
 import {
-  createCandidateTask, deleteCandidateTask, getCandidateTask, getCandidateTaskStats, importCandidateTasks,
+  createCandidateTask, deleteCandidateTask, getCandidateTask, getCandidateTaskStats, getTaskFilterOptions, importCandidateTasks,
   listCandidateTasks, listSubmissions, resubmitTaskDesign, reviewSubmission, submitTaskDesign,
   updateCandidateTask,
 } from '../../services/tasks'
+import type { TaskSortKey } from '../../services/tasks'
 import { createVendor, listVendors, setVendorStatus } from '../../services/vendors'
 import { candidateTaskCsvTemplate, parseCandidateTaskCsv } from '../../utils/csv'
-import type { CandidateTask, TaskSubmission } from '../../types/database'
+import type { CandidateTask, SubmissionStatus, TaskSubmission } from '../../types/database'
 import { supabase } from '../../lib/supabase'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import '../../App.css'
 
 type View = 'tasks' | 'detail' | 'reviews' | 'vendors' | 'claim' | 'results'
@@ -59,12 +61,17 @@ function Heading({ eyebrow, title, description, action }: { eyebrow: string; tit
 
 function AdminTaskPage({ openTask }: { openTask: (id: string) => void }) {
   const client = useQueryClient()
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [scene, setScene] = useState('')
+  const [taskFilter, setTaskFilter] = useState('')
+  const [sortBy, setSortBy] = useState<TaskSortKey>('task_code')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<CandidateTask | null>(null)
-  const tasks = useQuery({ queryKey: ['tasks', search, scene, page], queryFn: () => listCandidateTasks({ search, level1Scene: scene || undefined, page }) })
+  const search = useDebouncedValue(searchInput)
+  const options = useQuery({ queryKey: ['task-filter-options'], queryFn: getTaskFilterOptions })
+  const tasks = useQuery({ queryKey: ['tasks', search, scene, taskFilter, sortBy, sortDirection, page], queryFn: () => listCandidateTasks({ search, level1Scene: scene || undefined, level2Task: taskFilter || undefined, sortBy, sortDirection, page }) })
   const stats = useQuery({ queryKey: ['task-stats'], queryFn: getCandidateTaskStats })
   const refreshTasks = () => {
     client.invalidateQueries({ queryKey: ['tasks'] })
@@ -79,9 +86,9 @@ function AdminTaskPage({ openTask }: { openTask: (id: string) => void }) {
 
   return <><Heading eyebrow="ADMIN / CANDIDATE TASKS" title="候选任务列表" description="管理真实数据采集任务池" action={<div className="action-row"><button className="secondary" onClick={downloadCsvTemplate}>下载模板</button><label className="secondary file-button"><FileUp size={16} />导入 CSV<input type="file" accept=".csv" onChange={(e) => e.target.files?.[0] && csvImport.mutate(e.target.files[0])} /></label><button className="primary" onClick={() => setShowCreate(true)}><Plus size={16} />新建任务</button></div>} />
     <div className="stats-grid"><div className="stat-card accent"><span>任务目标总数</span><strong>{stats.data?.target_count ?? 0}</strong><ListTodo /></div><div className="stat-card"><span>已审核通过</span><strong>{stats.data?.approved_count ?? 0}</strong><Check /></div><div className="stat-card"><span>待审核</span><strong>{stats.data?.pending_count ?? 0}</strong><ClipboardCheck /></div><div className="stat-card"><span>候选任务条目</span><strong>{stats.data?.task_count ?? 0}</strong><LayoutGrid /></div></div>
-    <div className="panel"><div className="filter-bar"><div className="search-box"><Search size={17} /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="搜索任务..." /></div><select value={scene} onChange={(e) => { setScene(e.target.value); setPage(1) }}><option value="">全部场景</option><option>家庭场景</option><option>商业场景</option><option>工业场景</option></select></div>
+    <div className="panel"><div className="filter-bar"><div className="search-box"><Search size={17} /><input value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1) }} placeholder="模糊搜索三级任务名称或编号..." /></div><select value={scene} onChange={(e) => { setScene(e.target.value); setPage(1) }}><option value="">全部场景</option>{options.data?.scenes.map((item) => <option key={item}>{item}</option>)}</select><select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setPage(1) }}><option value="">全部任务</option>{options.data?.tasks.map((item) => <option key={item}>{item}</option>)}</select></div>
       {tasks.isError && <ErrorBox error={tasks.error} />}{csvImport.isError && <ErrorBox error={csvImport.error} />}
-      <div className="table-wrap"><table><thead><tr><th>编号</th><th>场景</th><th>二级任务</th><th>三级任务示例</th><th>总数</th><th>已通过</th><th>待审核</th><th>剩余</th><th /></tr></thead><tbody>{tasks.data?.data.map((task) => <tr key={task.id}><td><button className="task-link" onClick={() => openTask(task.id)}>{task.task_code}</button></td><td><strong>{task.level1_scene}</strong><small>{task.level2_scene}</small></td><td>{task.level2_task}</td><td><button className="name-link" onClick={() => openTask(task.id)}><strong>{task.example_name}</strong><small>{task.example_steps.join(' → ')}</small></button></td><td>{task.target_count}</td><td><span className="count-cell approved">{task.approved_count}</span></td><td><span className="count-cell pending">{task.pending_count}</span></td><td>{task.available_count}</td><td><div className="action-row"><button className="secondary" onClick={() => setEditing(task)}>编辑</button><button className="danger" onClick={() => confirm('确认删除该任务？') && remove.mutate(task.id)}>删除</button></div></td></tr>)}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><SortableHeader label="编号" sortKey="task_code" active={sortBy} direction={sortDirection} onSort={(key, direction) => { setSortBy(key); setSortDirection(direction); setPage(1) }} /><SortableHeader label="场景" sortKey="scene" active={sortBy} direction={sortDirection} onSort={(key, direction) => { setSortBy(key); setSortDirection(direction); setPage(1) }} /><th>二级任务</th><th>三级任务示例</th><SortableHeader label="总数" sortKey="target_count" active={sortBy} direction={sortDirection} onSort={(key, direction) => { setSortBy(key); setSortDirection(direction); setPage(1) }} /><SortableHeader label="已通过" sortKey="approved_count" active={sortBy} direction={sortDirection} onSort={(key, direction) => { setSortBy(key); setSortDirection(direction); setPage(1) }} /><SortableHeader label="待审核" sortKey="pending_count" active={sortBy} direction={sortDirection} onSort={(key, direction) => { setSortBy(key); setSortDirection(direction); setPage(1) }} /><SortableHeader label="剩余" sortKey="available_count" active={sortBy} direction={sortDirection} onSort={(key, direction) => { setSortBy(key); setSortDirection(direction); setPage(1) }} /><th /></tr></thead><tbody>{tasks.data?.data.map((task) => <tr key={task.id}><td><button className="task-link" onClick={() => openTask(task.id)}>{task.task_code}</button></td><td><strong>{task.level1_scene}</strong><small>{task.level2_scene}</small></td><td>{task.level2_task}</td><td><button className="name-link" onClick={() => openTask(task.id)}><strong>{task.example_name}</strong><small>{task.example_steps.join(' → ')}</small></button></td><td>{task.target_count}</td><td><span className="count-cell approved">{task.approved_count}</span></td><td><span className="count-cell pending">{task.pending_count}</span></td><td>{task.available_count}</td><td><div className="action-row"><button className="secondary" onClick={() => setEditing(task)}>编辑</button><button className="danger" onClick={() => confirm('确认删除该任务？') && remove.mutate(task.id)}>删除</button></div></td></tr>)}</tbody></table></div>
       <Pager page={page} pageSize={25} count={tasks.data?.count ?? 0} setPage={setPage} />
     </div>{showCreate && <TaskDialog close={() => setShowCreate(false)} />}{editing && <TaskDialog initial={editing} close={() => setEditing(null)} />}</>
 }
@@ -111,13 +118,18 @@ function ReviewPage() {
   const [scene, setScene] = useState('')
   const [task, setTask] = useState('')
   const [vendorId, setVendorId] = useState('')
+  const [reviewStatus, setReviewStatus] = useState<'all' | SubmissionStatus>('pending')
+  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
-  const query = useQuery({ queryKey: ['submissions', 'pending', scene, task, vendorId], queryFn: () => listSubmissions({ status: 'pending', scene: scene || undefined, task: task || undefined, vendorId: vendorId || undefined }) })
+  const options = useQuery({ queryKey: ['task-filter-options'], queryFn: getTaskFilterOptions })
+  const query = useQuery({ queryKey: ['submissions', reviewStatus, scene, task, vendorId, page], queryFn: () => listSubmissions({ status: reviewStatus === 'all' ? undefined : reviewStatus, scene: scene || undefined, task: task || undefined, vendorId: vendorId || undefined, page }) })
   const vendors = useQuery({ queryKey: ['vendors'], queryFn: listVendors })
   const current = query.data?.data.find((item) => item.id === selected) ?? query.data?.data[0]
   const approved = useQuery({ queryKey: ['task', current?.candidate_task_id], queryFn: () => getCandidateTask(current!.candidate_task_id), enabled: Boolean(current) })
   const review = useMutation({ mutationFn: ({ decision, note }: { decision: 'approved' | 'revision_required'; note?: string }) => reviewSubmission(current!.id, decision, note), onSuccess: () => { client.invalidateQueries({ queryKey: ['submissions'] }); client.invalidateQueries({ queryKey: ['tasks'] }); client.invalidateQueries({ queryKey: ['task-stats'] }) } })
-  return <><Heading eyebrow="ADMIN / REVIEW" title="任务审核" description="筛选并审核 Vendor 提交的任务设计" /><div className="review-filters"><select value={scene} onChange={(e) => setScene(e.target.value)}><option value="">全部场景</option><option>家庭场景</option><option>商业场景</option><option>工业场景</option></select><select value={task} onChange={(e) => setTask(e.target.value)}><option value="">全部任务</option><option>餐具整理</option><option>物品归位</option><option>货架补货</option></select><select value={vendorId} onChange={(e) => setVendorId(e.target.value)}><option value="">全部 Vendor</option>{vendors.data?.map((item: { id: string; name: string }) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></div>{query.isError && <ErrorBox error={query.error} />}<div className="review-layout"><div className="panel review-list">{query.data?.data.map((item) => <button key={item.id} className={`review-item ${item.id === current?.id ? 'selected' : ''}`} onClick={() => setSelected(item.id)}><strong>{item.name}</strong><p>{item.vendor?.name} · {item.candidate_task?.example_name}</p><Status tone="orange">待审核</Status></button>)}</div>{current && <div className="review-preview"><div className="preview-hero"><span>当前审核</span><h2>{current.name}</h2><p>{current.vendor?.name}</p></div><div className="preview-body"><section><label>任务步骤</label><ol>{current.steps?.sort((a, b) => a.position - b.position).map((step) => <li key={step.id}><i>{String(step.position).padStart(2, '0')}</i>{step.instruction}</li>)}</ol></section><section><label>已通过的同级任务完整清单</label><SubmissionList title="已通过" items={approved.data?.submissions.filter((item) => item.status === 'approved') ?? []} /></section>{review.isError && <ErrorBox error={review.error} />}<div className="review-actions"><button className="danger" onClick={() => { const note = prompt('请输入至少 5 个字的退回原因'); if (note && note.trim().length >= 5) review.mutate({ decision: 'revision_required', note }) }}>退回修改</button><button className="primary" onClick={() => review.mutate({ decision: 'approved' })}><Check size={16} />通过审核</button></div></div></div>}</div></>
+  const statusOptions: { value: 'all' | SubmissionStatus; label: string }[] = [{ value: 'all', label: '全部' }, { value: 'pending', label: '待审核' }, { value: 'approved', label: '已通过' }, { value: 'revision_required', label: '需修改' }, { value: 'rejected', label: '已拒绝' }, { value: 'withdrawn', label: '已撤回' }]
+  const statusLabel = statusOptions.find((item) => item.value === current?.status)?.label ?? ''
+  return <><Heading eyebrow="ADMIN / REVIEW" title="任务审核" description="查看不同审核状态，并按场景、任务和 Vendor 筛选" /><div className="result-tabs review-status-tabs">{statusOptions.map((item) => <button key={item.value} className={reviewStatus === item.value ? 'active' : ''} onClick={() => { setReviewStatus(item.value); setSelected(null); setPage(1) }}>{item.label}</button>)}</div><div className="review-filters"><select value={scene} onChange={(e) => { setScene(e.target.value); setPage(1) }}><option value="">全部场景</option>{options.data?.scenes.map((item) => <option key={item}>{item}</option>)}</select><select value={task} onChange={(e) => { setTask(e.target.value); setPage(1) }}><option value="">全部任务</option>{options.data?.tasks.map((item) => <option key={item}>{item}</option>)}</select><select value={vendorId} onChange={(e) => { setVendorId(e.target.value); setPage(1) }}><option value="">全部 Vendor</option>{vendors.data?.map((item: { id: string; name: string }) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></div>{query.isError && <ErrorBox error={query.error} />}<div className="review-layout"><div className="panel review-list">{query.data?.data.map((item) => <button key={item.id} className={`review-item ${item.id === current?.id ? 'selected' : ''}`} onClick={() => setSelected(item.id)}><strong>{item.name}</strong><p>{item.vendor?.name} · {item.candidate_task?.example_name}</p><Status tone={item.status === 'approved' ? 'green' : item.status === 'pending' ? 'orange' : item.status === 'rejected' ? 'red' : 'gray'}>{statusOptions.find((status) => status.value === item.status)?.label}</Status></button>)}<Pager page={page} pageSize={25} count={query.data?.count ?? 0} setPage={(next) => { setPage(next); setSelected(null) }} /></div>{current && <div className="review-preview"><div className="preview-hero"><span>{statusLabel}</span><h2>{current.name}</h2><p>{current.vendor?.name}</p></div><div className="preview-body"><section><label>任务步骤</label><ol>{current.steps?.sort((a, b) => a.position - b.position).map((step) => <li key={step.id}><i>{String(step.position).padStart(2, '0')}</i>{step.instruction}</li>)}</ol></section><section><label>已通过的同级任务完整清单</label><SubmissionList title="已通过" items={approved.data?.submissions.filter((item) => item.status === 'approved') ?? []} /></section>{review.isError && <ErrorBox error={review.error} />}{current.status === 'pending' && <div className="review-actions"><button className="danger" onClick={() => { const note = prompt('请输入至少 5 个字的退回原因'); if (note && note.trim().length >= 5) review.mutate({ decision: 'revision_required', note }) }}>退回修改</button><button className="primary" onClick={() => review.mutate({ decision: 'approved' })}><Check size={16} />通过审核</button></div>}</div></div>}</div></>
 }
 
 function VendorManagementPage() {
@@ -136,13 +148,15 @@ function CreateVendorDialog({ close }: { close: () => void }) {
 }
 
 function ClaimPage() {
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [scene, setScene] = useState('')
   const [taskFilter, setTaskFilter] = useState('')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<CandidateTask | null>(null)
+  const search = useDebouncedValue(searchInput)
+  const options = useQuery({ queryKey: ['task-filter-options'], queryFn: getTaskFilterOptions })
   const tasks = useQuery({ queryKey: ['available-tasks', search, scene, taskFilter, page], queryFn: () => listCandidateTasks({ search, level1Scene: scene || undefined, level2Task: taskFilter || undefined, status: 'published', availableOnly: true, page, pageSize: 50 }) })
-  return <><Heading eyebrow="VENDOR / AVAILABLE" title="认领任务" description="从任务库中检索并提交你的三级任务设计" /><div className="panel"><div className="filter-bar"><div className="search-box"><Search size={17} /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="搜索数千条任务..." /></div><select value={scene} onChange={(e) => { setScene(e.target.value); setPage(1) }}><option value="">全部场景</option><option>家庭场景</option><option>商业场景</option><option>工业场景</option></select><select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setPage(1) }}><option value="">全部任务</option><option>餐具整理</option><option>物品归位</option><option>货架补货</option></select></div><div className="table-wrap"><table><thead><tr><th>编号</th><th>场景</th><th>二级任务</th><th>三级任务示例</th><th>可认领</th><th /></tr></thead><tbody>{tasks.data?.data.filter((task) => task.available_count > 0).map((task) => <tr key={task.id}><td>{task.task_code}</td><td><strong>{task.level1_scene}</strong><small>{task.level2_scene}</small></td><td>{task.level2_task}</td><td><strong>{task.example_name}</strong><small>{task.example_steps.join(' → ')}</small></td><td><Status>{task.available_count}</Status></td><td><button className="claim-button" onClick={() => setSelected(task)}>认领并设计<ChevronRight size={15} /></button></td></tr>)}</tbody></table></div><Pager page={page} pageSize={50} count={tasks.data?.count ?? 0} setPage={setPage} /></div>{selected && <SubmitDesignDialog task={selected} close={() => setSelected(null)} />}</>
+  return <><Heading eyebrow="VENDOR / AVAILABLE" title="认领任务" description="从任务库中检索并提交你的三级任务设计" /><div className="panel"><div className="filter-bar"><div className="search-box"><Search size={17} /><input value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1) }} placeholder="模糊搜索三级任务名称或编号..." /></div><select value={scene} onChange={(e) => { setScene(e.target.value); setPage(1) }}><option value="">全部场景</option>{options.data?.scenes.map((item) => <option key={item}>{item}</option>)}</select><select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setPage(1) }}><option value="">全部任务</option>{options.data?.tasks.map((item) => <option key={item}>{item}</option>)}</select></div><div className="table-wrap"><table><thead><tr><th>编号</th><th>场景</th><th>二级任务</th><th>三级任务示例</th><th>可认领</th><th /></tr></thead><tbody>{tasks.data?.data.map((task) => <tr key={task.id}><td>{task.task_code}</td><td><strong>{task.level1_scene}</strong><small>{task.level2_scene}</small></td><td>{task.level2_task}</td><td><strong>{task.example_name}</strong><small>{task.example_steps.join(' → ')}</small></td><td><Status>{task.available_count}</Status></td><td><button className="claim-button" onClick={() => setSelected(task)}>认领并设计<ChevronRight size={15} /></button></td></tr>)}</tbody></table></div><Pager page={page} pageSize={50} count={tasks.data?.count ?? 0} setPage={setPage} /></div>{selected && <SubmitDesignDialog task={selected} close={() => setSelected(null)} />}</>
 }
 
 function SubmitDesignDialog({ task, close }: { task: CandidateTask; close: () => void }) {
@@ -155,8 +169,11 @@ function SubmitDesignDialog({ task, close }: { task: CandidateTask; close: () =>
 
 function ResultsPage() {
   const [editing, setEditing] = useState<TaskSubmission | null>(null)
+  const [searchInput, setSearchInput] = useState('')
+  const [page, setPage] = useState(1)
+  const search = useDebouncedValue(searchInput)
   const client = useQueryClient()
-  const submissions = useQuery({ queryKey: ['my-submissions'], queryFn: () => listSubmissions({ pageSize: 100 }) })
+  const submissions = useQuery({ queryKey: ['my-submissions', search, page], queryFn: () => listSubmissions({ search, page, pageSize: 20 }) })
   useEffect(() => {
     const channel = supabase.channel('my-submission-results')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'task_submissions' }, () => {
@@ -165,7 +182,7 @@ function ResultsPage() {
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
   }, [client])
-  return <><Heading eyebrow="VENDOR / RESULTS" title="审核结果" description="查看提交状态、审核意见并继续修改" /><div className="panel result-panel">{submissions.data?.data.map((item) => <div className="result-row" key={item.id}><div className="result-icon"><ClipboardCheck /></div><div className="result-main"><span>{item.id.slice(0, 8)}</span><strong>{item.name}</strong><small>{new Date(item.submitted_at).toLocaleString('zh-CN')}</small></div><p>{item.review_note || '暂无审核备注'}</p><Status tone={item.status === 'approved' ? 'green' : item.status === 'revision_required' ? 'orange' : item.status === 'rejected' ? 'red' : 'gray'}>{{ approved: '已通过', revision_required: '需修改', rejected: '已拒绝', pending: '审核中', withdrawn: '已撤回' }[item.status]}</Status>{item.status === 'revision_required' ? <button className="secondary" onClick={() => setEditing(item)}>修改</button> : <ChevronRight size={18} />}</div>)}</div>{editing && <EditSubmissionDialog submission={editing} close={() => setEditing(null)} />}</>
+  return <><Heading eyebrow="VENDOR / RESULTS" title="审核结果" description="查看完整任务信息、审核状态与反馈" /><div className="panel"><div className="filter-bar"><div className="search-box"><Search size={17} /><input value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1) }} placeholder="搜索设计的三级任务名称..." /></div></div>{submissions.isError && <ErrorBox error={submissions.error} />}<div className="table-wrap result-task-table"><table><thead><tr><th>三级任务名称</th><th>任务步骤</th><th>一级场景</th><th>二级场景</th><th>二级任务</th><th>审核结果</th><th>审核意见</th><th /></tr></thead><tbody>{submissions.data?.data.map((item) => <tr key={item.id}><td><strong>{item.name}</strong><small>{new Date(item.submitted_at).toLocaleString('zh-CN')}</small></td><td><div className="result-steps">{item.steps?.sort((a, b) => a.position - b.position).map((step, index) => <span key={step.id}><i>{index + 1}</i>{step.instruction}</span>)}</div></td><td>{item.candidate_task?.level1_scene}</td><td>{item.candidate_task?.level2_scene}</td><td>{item.candidate_task?.level2_task}</td><td><Status tone={item.status === 'approved' ? 'green' : item.status === 'revision_required' ? 'orange' : item.status === 'rejected' ? 'red' : 'gray'}>{{ approved: '已通过', revision_required: '需修改', rejected: '已拒绝', pending: '审核中', withdrawn: '已撤回' }[item.status]}</Status></td><td><span className="review-note">{item.review_note || '暂无审核意见'}</span></td><td>{item.status === 'revision_required' && <button className="secondary" onClick={() => setEditing(item)}>修改</button>}</td></tr>)}</tbody></table></div><Pager page={page} pageSize={20} count={submissions.data?.count ?? 0} setPage={setPage} /></div>{editing && <EditSubmissionDialog submission={editing} close={() => setEditing(null)} />}</>
 }
 
 function EditSubmissionDialog({ submission, close }: { submission: TaskSubmission; close: () => void }) {
@@ -184,9 +201,24 @@ function Loading() {
   return <div className="panel empty-state">正在加载…</div>
 }
 
+function SortableHeader({ label, sortKey, active, direction, onSort }: { label: string; sortKey: TaskSortKey; active: TaskSortKey; direction: 'asc' | 'desc'; onSort: (key: TaskSortKey, direction: 'asc' | 'desc') => void }) {
+  const nextDirection = active === sortKey && direction === 'asc' ? 'desc' : 'asc'
+  return <th><button className={`sort-button ${active === sortKey ? 'active' : ''}`} onClick={() => onSort(sortKey, nextDirection)}>{label}{active === sortKey ? direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} /> : <span className="sort-placeholder" />}</button></th>
+}
+
 function Pager({ page, pageSize, count, setPage }: { page: number; pageSize: number; count: number; setPage: (page: number) => void }) {
   const totalPages = Math.max(1, Math.ceil(count / pageSize))
-  return <div className="pagination"><span>第 {page} / {totalPages} 页，共 {count} 条</span><div><button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button><button className="active">{page}</button><button disabled={page >= totalPages} onClick={() => setPage(page + 1)}>下一页</button></div></div>
+  return <div className="pagination"><span>第 {page} / {totalPages} 页，共 {count} 条</span><div><button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button><PageJump key={page} page={page} totalPages={totalPages} setPage={setPage} /><button disabled={page >= totalPages} onClick={() => setPage(page + 1)}>下一页</button></div></div>
+}
+
+function PageJump({ page, totalPages, setPage }: { page: number; totalPages: number; setPage: (page: number) => void }) {
+  const [input, setInput] = useState(String(page))
+  const jump = () => {
+    const next = Math.min(totalPages, Math.max(1, Number.parseInt(input, 10) || page))
+    setInput(String(next))
+    setPage(next)
+  }
+  return <label className="page-jump">跳至<input inputMode="numeric" value={input} onChange={(e) => setInput(e.target.value.replace(/\D/g, ''))} onBlur={jump} onKeyDown={(e) => e.key === 'Enter' && jump()} />页</label>
 }
 
 function downloadCsvTemplate() {

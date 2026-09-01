@@ -35,6 +35,11 @@ A two-role workspace for registering embodied-intelligence data collection tasks
 - Production roles are derived from the authenticated profile and cannot be switched in the UI.
 - Review queues switch in place without opening a modal; scene, task, and vendor filters are available.
 - Vendor task discovery uses a paginated table suitable for thousands of level-three tasks.
+- Candidate and claim lists use debounced fuzzy task-name search; scene and task filters are derived from visible database values.
+- Candidate tasks support server-side sorting by code, scene, target, approved, pending, and available counts.
+- All high-volume lists support previous/next controls and direct page-number entry.
+- Admin review supports pending, approved, revision-required, rejected, withdrawn, and all-status views with Vendor filtering.
+- Vendor review results include the designed level-three name, ordered steps, level-one scene, level-two scene, level-two task, review result, and feedback.
 - Brand palette: black, off-white, and `#CCFFA0`.
 - Display font: Space Grotesk. Body font: Inter Tight.
 
@@ -51,4 +56,5 @@ A two-role workspace for registering embodied-intelligence data collection tasks
 - The service-role key exists only in Edge Function secrets.
 - RLS limits Vendors to published tasks and their own submissions.
 - Claims and reviews lock affected records and update task capacity transactionally.
+- Every Vendor submission contains exactly one task design; claiming multiple designs in one submission is not supported.
 - Vendor temporary passwords must be replaced on first login.
