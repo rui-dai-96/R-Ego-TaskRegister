@@ -178,6 +178,7 @@ td small { margin-top: 4px; color: #92968f; font-size: 9px; }
 .task-link, .name-link { padding: 0; border: 0; color: inherit; background: none; text-align: left; }
 .task-link { color: #4f732f; font: 600 10px 'Space Grotesk'; text-decoration: underline; text-decoration-color: #bad99e; text-underline-offset: 3px; }
 .name-link:hover strong { color: #4f792f; }
+.name-link strong, .name-link small { max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
 .count-cell { min-width: 25px; padding: 5px 7px; display: inline-grid; place-items: center; border-radius: 6px; color: #626761; background: #f0f2ee; font: 600 10px 'Space Grotesk'; }
 .count-cell.approved { color: #39701d; background: #eaffda; }
 .count-cell.pending { color: #a04b24; background: #fff0e5; }
