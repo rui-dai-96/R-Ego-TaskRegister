@@ -32,7 +32,7 @@ additional_redirect_urls = ["http://127.0.0.1:5173"]
 jwt_expiry = 3600
 enable_signup = false
 enable_anonymous_sign_ins = false
-minimum_password_length = 10
+minimum_password_length = 6
 
 [auth.email]
 # Maps to GOTRUE_EXTERNAL_EMAIL_ENABLED: turning this off disables password

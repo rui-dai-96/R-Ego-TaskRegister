@@ -67,11 +67,11 @@ Deno.serve(async (request) => {
   const temporaryPassword = payload.temporaryPassword;
   if (
     !email || !companyName || !temporaryPassword ||
-    temporaryPassword.length < 10
+    temporaryPassword.length < 6
   ) {
     return json({
       error:
-        "Email, company name, and a 10+ character temporary password are required",
+        "Email, company name, and a 6+ character temporary password are required",
     }, 400);
   }
 

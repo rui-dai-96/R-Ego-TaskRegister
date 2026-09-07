@@ -29,8 +29,8 @@ export async function listVendors() {
 }
 
 export async function createVendor(input: CreateVendorInput) {
-  if (input.temporaryPassword.length < 10) {
-    throw new Error('临时密码至少需要 10 个字符')
+  if (input.temporaryPassword.length < 6) {
+    throw new Error('临时密码至少需要 6 个字符')
   }
   const { data, error } = await supabase.functions.invoke('create-vendor', { body: input })
   if (error) await throwFunctionError(error)
