@@ -25,8 +25,11 @@ Deno.serve(async (request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const authorization = request.headers.get("Authorization");
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) {
-    return json({ error: "Unauthorized" }, 401);
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return json({ error: "Edge Function missing SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY" }, 500);
+  }
+  if (!authorization) {
+    return json({ error: "Missing Authorization header" }, 401);
   }
 
   const callerClient = createClient(supabaseUrl, anonKey, {
@@ -38,7 +41,7 @@ Deno.serve(async (request) => {
   });
 
   const { data: { user: caller } } = await callerClient.auth.getUser();
-  if (!caller) return json({ error: "Unauthorized" }, 401);
+  if (!caller) return json({ error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile } = await adminClient
     .from("profiles")

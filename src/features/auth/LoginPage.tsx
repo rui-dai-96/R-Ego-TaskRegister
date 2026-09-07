@@ -10,7 +10,7 @@ import './auth.css'
 
 const schema = z.object({
   email: z.email('请输入有效邮箱'),
-  password: z.string().min(8, '密码至少需要 8 位'),
+  password: z.string().min(1, '请输入密码'),
 })
 
 type LoginValues = z.infer<typeof schema>
